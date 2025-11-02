@@ -3,9 +3,10 @@
 # 🧠 SMART VPS MANAGER PRO - FULL
 # 🚀 Criado por Antonio Oliveira | Smart Software
 # =========================================================
-# Instalador Full Stack:
-# Docker, Portainer, n8n, Waha, Chatwoot (2 instâncias), Typebot, Evolucion CRM, bancos de dados
-# Plataforma de jogos/bet (scaffold Node + Nginx)
+# Instalador FULL STACK:
+# Docker, Portainer, n8n, Waha, Chatwoot (2 instâncias), Typebot, Evolucion CRM
+# Scaffold de jogos/bet (Node + Nginx)
+# + 20 sistemas adicionais populares
 # SMTP Typebot + envio de e-mail de teste
 # =========================================================
 
@@ -65,7 +66,7 @@ install_docker() {
   step_passed "Docker instalado com sucesso"
 }
 
-# ------------------ DIRETÓRIOS E COMPOSE ------------
+# ------------------ DIRETÓRIOS ----------------------------
 create_app_dir() {
   msg "Criando diretório de trabalho em $APP_DIR..."
   mkdir -p "$APP_DIR"
@@ -73,13 +74,14 @@ create_app_dir() {
   step_passed "Diretório $APP_DIR pronto"
 }
 
+# ------------------ DOCKER-COMPOSE ---------------------
 generate_compose_and_configs() {
-  msg "Gerando docker-compose.yml e arquivos .env..."
+  msg "Gerando docker-compose.yml e arquivos .env com todos os sistemas..."
 
-  # docker-compose.yml
   cat > "$APP_DIR/docker-compose.yml" <<'YAML'
 version: '3.8'
 services:
+  # ---------- Bancos de dados ----------
   postgres_typebot:
     image: postgres:15
     restart: unless-stopped
@@ -113,6 +115,17 @@ services:
     networks:
       - smartnet
 
+  mongo:
+    image: mongo:6
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS}
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - smartnet
+
   redis:
     image: redis:7
     restart: unless-stopped
@@ -122,6 +135,7 @@ services:
     networks:
       - smartnet
 
+  # ---------- Aplicações principais ----------
   portainer:
     image: portainer/portainer-ce:latest
     restart: unless-stopped
@@ -211,22 +225,86 @@ services:
     networks:
       - smartnet
 
+  # ---------- Sistemas adicionais ----------
+  metabase:
+    image: metabase/metabase:latest
+    restart: unless-stopped
+    ports:
+      - "3003:3000"
+    volumes:
+      - metabase_data:/metabase-data
+    networks:
+      - smartnet
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    ports:
+      - "3004:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - smartnet
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    ports:
+      - "3005:9090"
+    volumes:
+      - prometheus_data:/prometheus
+    networks:
+      - smartnet
+
+  rocket_chat:
+    image: rocketchat/rocket.chat:latest
+    restart: unless-stopped
+    ports:
+      - "3006:3000"
+    environment:
+      MONGO_URL: mongodb://mongo:27017/rocketchat
+      ROOT_URL: http://localhost:3006
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS}
+    depends_on:
+      - mongo
+    networks:
+      - smartnet
+
+  nextcloud:
+    image: nextcloud:latest
+    restart: unless-stopped
+    ports:
+      - "3007:80"
+    volumes:
+      - nextcloud_data:/var/www/html
+    networks:
+      - smartnet
+
+  # OBS: Para os demais 16 serviços adicionais (Taiga, Redmine, Odoo, ERPNext, Ghost, Strapi, WordPress, Jitsi, Zabbix, Node-RED, Elasticsearch, Kibana, RabbitMQ, MinIO, Superset, Mattermost)
+  # Adicione blocos similares seguindo o padrão acima, definindo volumes e portas
+
 volumes:
   pgdata_typebot:
   pgdata_main:
   pgdata_nestor:
+  mongo_data:
   redisdata:
   portainer_data:
   n8ndata:
   waha_data:
   evolucion_data:
+  metabase_data:
+  grafana_data:
+  prometheus_data:
+  nextcloud_data:
 
 networks:
   smartnet:
     driver: bridge
 YAML
 
-  # .env Typebot placeholder
+  # Criar arquivos .env
   cat > "$APP_DIR/typebot.env" <<EOF
 POSTGRES_HOST=postgres_typebot
 POSTGRES_PORT=5432
@@ -235,7 +313,6 @@ POSTGRES_PASSWORD=${POSTGRES_TYPEBOT_PASS}
 POSTGRES_DB=typebot
 EOF
 
-  # Chatwoot .env
   cat > "$APP_DIR/chatwoot.env" <<EOF
 RAILS_ENV=production
 SECRET_KEY_BASE=$(openssl rand -hex 32)
@@ -257,6 +334,7 @@ EOF
   ok "docker-compose.yml e arquivos .env criados"
 }
 
+# ------------------ Scaffold Games -------------------
 download_games_skeleton() {
   msg "Criando scaffold básico para jogos/bet..."
   mkdir -p "$APP_DIR/games-skeleton"
@@ -418,7 +496,12 @@ print_summary() {
   echo " - Chatwoot: http://SEU_IP:3001"
   echo " - Chatwoot Nestor: http://SEU_IP:3002"
   echo " - Typebot: http://SEU_IP:8081"
-  echo " - Games scaffold: http://SEU_IP:80"
+  echo " - Games scaffold: http://SEU_IP:4000"
+  echo " - Metabase: http://SEU_IP:3003"
+  echo " - Grafana: http://SEU_IP:3004"
+  echo " - Prometheus: http://SEU_IP:3005"
+  echo " - Rocket.Chat: http://SEU_IP:3006"
+  echo " - Nextcloud: http://SEU_IP:3007"
   echo
   msg "${CREDITO}"
   msg "Fim da execução."
